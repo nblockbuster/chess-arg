@@ -1,0 +1,2 @@
+- matching-fen site uses code from https://github.com/afriestad/chesstiny which has been released into the public domain
+- matching-fen site uses the https://github.com/nol13/fuzzball.js library
