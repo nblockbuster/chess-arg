@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #222;
+            color: #fff;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        :root {
+            --border: 1px solid dimgrey;
+            --size: 64px;
+        }
+
+        #board {
+            width: calc(8 * var(--size));
+            height: calc(8 * var(--size));
+            border-top: var(--border);
+            border-left: var(--border);
+
+            display: flex;
+            flex-flow: row wrap;
+
+            background-color: lightgrey;
+        }
+
+        #piece {
+            display: flex;
+            flex-flow: row nowrap;
+
+            width: 2000px;
+        }
+
+        #fenError {
+            color: red;
+        }
+
+        .cell {
+            box-sizing: border-box;
+            width: var(--size);
+            height: var(--size);
+            border-bottom: var(--border);
+            border-right: var(--border);
+
+            background-color: #202020;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 48px 48px;
+
+        }
+
+        .bottom {
+            border-top: var(--border);
+            height: calc(var(--size) + 1px);
+            margin-top: -1px;
+        }
+
+        .right {
+            border-left: var(--border);
+            width: calc(var(--size) + 1px);
+            margin-left: -1px;
+        }
+
+        .pusher-6 {
+            width: calc(6 * var(--size));
+        }
+
+        .pusher-2 {
+            width: calc(2 * var(--size));
+        }
+
+        .image {
+            width: 48px;
+            height: 48px;
+            padding: 7px;
+            text-align: center;
+        }
+
+        .empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .selected {
+            background-color: rgb(0, 159, 159);
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        #search-form {
+            flex-grow: 1;
+            display: flex;
+            gap: 10px;
+        }
+
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background-color: #333;
+        }
+
+        .fen-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+            padding: 15px;
+            background-color: #444;
+            border-radius: 5px;
+        }
+
+        .fen-info {
+            flex-grow: 1;
+        }
+
+        .fen-item {
+            padding: 10px;
+            background-color: #555;
+            border: 1px solid #666;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-1 {
+            background-color: #4CAF50;
+        }
+
+        .btn-1:hover {
+            background-color: #45a049;
+        }
+
+        .btn-2 {
+            background-color: #2196F3;
+        }
+
+        .btn-2:hover {
+            background-color: #0b7dda;
+        }
+
+
+        .no-results {
+            color: #aaa;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .searching {
+            color: #aaa;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chess-image {
+            width: 144px;
+            height: 144px;
+            border: 1px solid #666;
+            background-color: #222;
+            object-fit: contain;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+    </style>
+
+    <script src="./fen.js"></script>
+
+    <script charset="UTF-8" src="./fuzzball.umd.min.js"></script>
+
+    <script>
+        const myglobals = { piece: "none" };
+
+        function nameFor(name) {
+            if (name === name.toUpperCase()) {
+                return `w${name.toLowerCase()}`;
+            }
+            if (name === name.toLowerCase()) {
+                return `b${name}`;
+            }
+        }
+
+        function updateImage(element) {
+            if (myglobals.piece === "none") {
+                element.removeAttribute("data-piece");
+                element.style.backgroundImage = "";
+                return;
+            }
+
+            element.style.backgroundImage = `url('./img/${nameFor(myglobals.piece)}.png')`;
+            element.setAttribute("data-piece", myglobals.piece);
+        }
+
+        function resetBoard() {
+            const cells = Array.from(document.querySelectorAll(".cell"));
+
+            Array.from(document.getElementById("piece").children).forEach(
+                (element) => element.classList.remove("selected")
+            );
+
+            myglobals.piece = "none";
+            cells.forEach(updateImage);
+        }
+
+        function init() {
+            // Handle changes to the board color selector
+            document.getElementById("color").addEventListener("change", (event) => {
+                event.stopPropagation();
+                const newColor = event.target.value;
+
+                document.getElementById("board").style.backgroundColor = newColor;
+            });
+
+            // Handle changes to the selected piece
+            document.getElementById("piece").addEventListener("click", (event) => {
+                event.stopPropagation();
+
+                myglobals.piece = event.target.id;
+
+                Array.from(event.currentTarget.children).forEach(
+                    (element) => element.classList.remove("selected")
+                );
+                event.target.classList.add("selected");
+            });
+
+            // Handle board clicks
+            document.getElementById("board").addEventListener("click", (event) => {
+                const target = event.target.classList.contains("cell") ? event.target : event.parent;
+
+                if (!target.classList.contains("cell")) {
+                    return;
+                } else if (target.classList.contains("center")) {
+                    Array.from(document.querySelectorAll(".center")).forEach(updateImage);
+                } else {
+                    updateImage(target);
+                }
+
+                makeFen();
+            });
+
+            document.getElementById("fenSubmit").addEventListener("click", event => {
+                event.stopPropagation();
+                parseFen();
+            });
+
+            document.getElementById("resetBoard").addEventListener("click", event => {
+                event.stopPropagation();
+                resetBoard();
+                makeFen();
+            })
+        }
+    </script>
+</head>
+
+<body>
+    <label for="color">Select Board Color (cosmetic)</label>
+    <select name="color" id="color">
+        <option value="lightgrey" selected>Light Grey</option>
+        <option value="darkgrey">Dark Grey</option>
+        <option value="lightcoral">Light Red</option>
+        <option value="darkred">Dark Red</option>
+    </select>
+
+    <div>
+        <button id="resetBoard">Reset Board</button>
+    </div>
+
+    <p>Select Piece</p>
+    <div id="piece">
+        <div id="none" class="image empty selected">None</div>
+
+        <img id="B" class="image" src="./img/wb.png" />
+        <img id="K" class="image" src="./img/wk.png" />
+        <img id="N" class="image" src="./img/wn.png" />
+        <img id="P" class="image" src="./img/wp.png" />
+        <img id="Q" class="image" src="./img/wq.png" />
+        <img id="R" class="image" src="./img/wr.png" />
+
+        <img id="b" class="image" src="./img/bb.png" />
+        <img id="k" class="image" src="./img/bk.png" />
+        <img id="n" class="image" src="./img/bn.png" />
+        <img id="p" class="image" src="./img/bp.png" />
+        <img id="q" class="image" src="./img/bq.png" />
+        <img id="r" class="image" src="./img/br.png" />
+    </div>
+
+    <div id="board">
+        <div id="a8" class="cell"></div>
+        <div id="b8" class="cell"></div>
+        <div id="c8" class="cell"></div>
+        <div id="d8" class="cell"></div>
+        <div id="e8" class="cell"></div>
+        <div id="f8" class="cell"></div>
+        <div id="g8" class="cell"></div>
+        <div id="h8" class="cell"></div>
+
+        <div id="a7" class="cell"></div>
+        <div class="pusher-6"></div>
+        <div id="h7" class="cell right"></div>
+
+        <div id="a6" class="cell"></div>
+        <div class="pusher-6"></div>
+        <div id="h6" class="cell right"></div>
+
+        <div id="a5" class="cell"></div>
+        <div class="pusher-2"></div>
+        <div id="d5" class="center cell bottom right"></div>
+        <div id="e5" class="center cell bottom"></div>
+        <div class="pusher-2"></div>
+        <div id="h5" class="cell right"></div>
+
+        <div id="a4" class="cell"></div>
+        <div class="pusher-2"></div>
+        <div id="d4" class="center cell right"></div>
+        <div id="e4" class="center cell"></div>
+        <div class="pusher-2"></div>
+        <div id="h4" class="cell right"></div>
+
+        <div id="a3" class="cell"></div>
+        <div class="pusher-6"></div>
+        <div id="h3" class="cell right"></div>
+
+        <div id="a2" class="cell"></div>
+        <div class="pusher-6"></div>
+        <div id="h2" class="cell right"></div>
+
+        <div id="a1" class="cell"></div>
+        <div id="b1" class="cell bottom"></div>
+        <div id="c1" class="cell bottom"></div>
+        <div id="d1" class="cell bottom"></div>
+        <div id="e1" class="cell bottom"></div>
+        <div id="f1" class="cell bottom"></div>
+        <div id="g1" class="cell bottom"></div>
+        <div id="h1" class="cell"></div>
+    </div>
+
+    <p>
+        <b>Resulting FEN:</b> <b id="fen">8/8/8/8/8/8/8/8</b>
+    </p>
+
+    <div>
+        <p>Parse a FEN to board</p>
+        <input id="fenInput" name="fenInput" type="text" placeholder="Paste a FEN..." />
+        <button id="fenSubmit" class="btn btn-2">Parse</button>
+        <div id="fenError"></div>
+    </div>
+
+    Exact Matches Only: <input type="checkbox" id="exactMatches" checked="true"><br>
+    Fuzzy Search Cutoff: <input type="number" id="fuzzyVal" value="85"><br>
+
+    <button id="submit-btn" class="btn btn-2">Search</button>
+
+    <div id="results"></div>
+
+    <script>
+        window.onload = init();
+
+        let cachedData = null;
+        let lastSearch = null;
+
+        function loadData() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="searching">Loading data...</p>';
+
+            fetch("https://tjl.co/queens-gambit-arg/data.json")
+                .then((response) => response.json())
+                .then(data => {
+                    cachedData = data;
+                    resultsDiv.innerHTML = '<p class="no-results">Data loaded. Enter a frequency number to search.</p>';
+                    if (lastSearch) {
+                        processResults(cachedData, lastSearch);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    resultsDiv.innerHTML = `<p class="no-results">Error loading data: ${error.message}</p>`;
+                });
+        }
+
+        function searchFen() {
+            // event.preventDefault();
+            const seq = document.getElementById("fen").textContent;
+            lastSearch = seq;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="searching">Loading data...</p>';
+            loadData();
+        }
+
+        function processResults(data, seq) {
+            const resultsDiv = document.getElementById('results');
+            const matching = [];
+
+            for (const [k, v] of Object.entries(data)) {
+                result = 0;
+                if (document.getElementById("exactMatches").checked) {
+                    if (seq === v.fen) {
+                        result = 100;
+                    }
+                } else {
+                    result = fuzzball.ratio(seq, v.fen);
+                }
+                if (result >= document.getElementById('fuzzyVal').value) {
+                    matching.push({ id: k, fen: v.fen, frequency: v.sequence });
+                }
+            }
+
+            if (matching.length > 0) {
+                let html = '';
+                matching.forEach(item => {
+                    html += `
+                    <div class="fen-container">
+                        <img class="chess-image" src="https://tjl.co/queens-gambit-arg/pieces/${item.id}.webp" alt="Chess position">
+                        <div class="fen-info">
+                            <div class="fen-item">Frequency: ${item.frequency}<br>FEN: ${item.fen}<br>ID: ${item.id}</div>
+                            <div class="btn-group">
+                                <button class="btn btn-1" onclick="copy('${item.frequency}', this)">Copy Frequency</button>
+                                <button class="btn btn-1" onclick="copy('${item.fen}', this)">Copy FEN</button>
+                                <button class="btn btn-1" onclick="copy('${item.id}', this)">Copy ID</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                resultsDiv.innerHTML = html;
+            } else {
+                resultsDiv.innerHTML = '<p class="no-results">No matching frequencies found</p>';
+            }
+        }
+
+        function copy(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                button.textContent = 'Error';
+            });
+        }
+
+
+        document.getElementById('submit-btn').addEventListener('click', () => {
+            searchFen()
+        });
+    </script>
+</body>
+
+</html>

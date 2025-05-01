@@ -1,0 +1,216 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>the searchbar</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #222;
+            color: #fff;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        #search-form {
+            flex-grow: 1;
+            display: flex;
+            gap: 10px;
+        }
+
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background-color: #333;
+        }
+
+        .fen-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+            padding: 15px;
+            background-color: #444;
+            border-radius: 5px;
+        }
+
+        .fen-info {
+            flex-grow: 1;
+        }
+
+        .fen-item {
+            padding: 10px;
+            background-color: #555;
+            border: 1px solid #666;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-1 {
+            background-color: #4CAF50;
+        }
+
+        .btn-1:hover {
+            background-color: #45a049;
+        }
+
+        .btn-2 {
+            background-color: #2196F3;
+        }
+
+        .btn-2:hover {
+            background-color: #0b7dda;
+        }
+
+
+        .no-results {
+            color: #aaa;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .searching {
+            color: #aaa;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .chess-image {
+            width: 144px;
+            height: 144px;
+            border: 1px solid #666;
+            background-color: #222;
+            object-fit: contain;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="paste-btn" class="btn btn-2">Paste Frequency</button>
+    <form id="search-form" onsubmit="searchSequence(event)">
+        <input type="text" id="seq" placeholder="Enter frequency number" required>
+        <input type="submit" class="btn btn-2" value="Search">
+    </form>
+
+    <div id="results"></div>
+
+    <script>
+        let cachedData = null;
+        let lastSearch = null;
+
+        function loadData() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="searching">Loading data...</p>';
+
+            fetch("https://tjl.co/queens-gambit-arg/data.json")
+                .then((response) => response.json())
+                .then(data => {
+                    cachedData = data;
+                    resultsDiv.innerHTML = '<p class="no-results">Data loaded. Enter a frequency number to search.</p>';
+                    if (lastSearch) {
+                        processResults(cachedData, lastSearch);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    resultsDiv.innerHTML = `<p class="no-results">Error loading data: ${error.message}</p>`;
+                });
+        }
+
+        function searchSequence(event) {
+            event.preventDefault();
+            const seq = document.getElementById('seq').value;
+            lastSearch = seq;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p class="searching">Loading data...</p>';
+            loadData();
+        }
+
+        function processResults(data, seq) {
+            const resultsDiv = document.getElementById('results');
+            const matching = [];
+
+            for (const [k, v] of Object.entries(data)) {
+                if (v.sequence === parseInt(seq)) {
+                    matching.push({ id: k, fen: v.fen });
+                }
+            }
+
+            if (matching.length > 0) {
+                let html = '';
+                matching.forEach(item => {
+                    html += `
+                    <div class="fen-container">
+                        <img class="chess-image" src="https://tjl.co/queens-gambit-arg/pieces/${item.id}.webp" alt="Chess position">
+                        <div class="fen-info">
+                            <div class="fen-item">FEN: ${item.fen}<br>ID: ${item.id}</div>
+                            <div class="btn-group">
+                                <button class="btn btn-1" onclick="copy('${item.fen}', this)">Copy FEN</button>
+                                <button class="btn btn-1" onclick="copy('${item.id}', this)">Copy ID</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                resultsDiv.innerHTML = html;
+            } else {
+                resultsDiv.innerHTML = '<p class="no-results">No matching frequencies found</p>';
+            }
+        }
+
+        function copy(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                button.textContent = 'Error';
+            });
+        }
+
+        document.getElementById('paste-btn').addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText()
+                document.getElementById('seq').value = text;
+                console.log('Text pasted.');
+            } catch (error) {
+                console.log('Failed to read clipboard. Using execCommand instead.');
+                document.getElementById('seq').focus();
+                const result = document.execCommand('paste')
+                console.log('document.execCommand result: ', result);
+            }
+        });
+    </script>
+</body>
+
+</html>
